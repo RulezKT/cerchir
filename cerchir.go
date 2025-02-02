@@ -1,6 +1,11 @@
 package cerchir
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/RulezKT/floatsfile"
+)
 
 type Position struct {
 	X float64
@@ -8,7 +13,24 @@ type Position struct {
 	Z float64
 }
 
-func Chiron(dateInSeconds float64, chiron_np []float64) Position {
+const (
+	CERES_FILE  = "ceres.bin"
+	CHIRON_FILE = "chiron.bin"
+)
+
+type CerChir struct {
+	chiron []float64
+	ceres  []float64
+}
+
+func (cc *CerChir) Load(dir string) {
+
+	cc.ceres = floatsfile.LoadBinary(filepath.Join(dir, CERES_FILE), 457984)
+	cc.chiron = floatsfile.LoadBinary(filepath.Join(dir, CHIRON_FILE), 458880)
+
+}
+
+func (cc *CerChir) CalcChiron(seconds float64) Position {
 
 	type FileRecords struct {
 		rec_start_addr int
@@ -160,13 +182,13 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 	const BUFSIZ = 100
 
 	for i_summ := 1; i_summ <= total_summaries_number; i_summ++ {
-		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < dateInSeconds &&
-			CHIRON_FILE_RECORDS[i_summ].seg_last_time > dateInSeconds {
+		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < seconds &&
+			CHIRON_FILE_RECORDS[i_summ].seg_last_time > seconds {
 
 			start_adress := CHIRON_FILE_RECORDS[i_summ].rec_start_addr
 			last_adress := CHIRON_FILE_RECORDS[i_summ].rec_last_addr
 
-			n_of_rec := int(chiron_np[last_adress-1])
+			n_of_rec := int(cc.chiron[last_adress-1])
 
 			// Number of directory epochs
 			var n_of_dir int = n_of_rec / BUFSIZ
@@ -178,19 +200,19 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 
 			if n_of_rec <= BUFSIZ {
 
-				data := chiron_np[(OFFE):(OFFE + n_of_rec)]
+				data := cc.chiron[(OFFE):(OFFE + n_of_rec)]
 
-				if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+				if seconds < data[0] || seconds > data[len(data)-1] {
 					fmt.Println("we have a problem")
 				}
 
 				for i, v := range data {
-					if v == dateInSeconds {
+					if v == seconds {
 						// fmt.Println("equality , index =", i, "value = ", arr[i])
 						RECNO = i
 						break
 					}
-					if v > dateInSeconds {
+					if v > seconds {
 						// fmt.Println("index =", i-1, "value = ", arr[i-1])
 						RECNO = i - 1
 						break
@@ -200,25 +222,25 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			} else {
 				for dir := 0; dir < n_of_dir; dir++ {
 
-					data := chiron_np[(OFFD + dir) : (OFFD+dir)+1][0]
+					data := cc.chiron[(OFFD + dir) : (OFFD+dir)+1][0]
 
-					if data > dateInSeconds {
+					if data > seconds {
 						OFFD = OFFE + (dir)*BUFSIZ
-						data := chiron_np[(OFFD):(OFFD + BUFSIZ)]
+						data := cc.chiron[(OFFD):(OFFD + BUFSIZ)]
 
 						// looking for the largest array element less than  dateInSeconds
 						// and get its index
-						if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+						if seconds < data[0] || seconds > data[len(data)-1] {
 							fmt.Println("we have a problem")
 						}
 
 						for i, v := range data {
-							if v == dateInSeconds {
+							if v == seconds {
 								// fmt.Println("equality , index =", i, "value = ", arr[i])
 								RECNO = i
 								break
 							}
-							if v > dateInSeconds {
+							if v > seconds {
 								// fmt.Println("index =", i-1, "value = ", arr[i-1])
 								RECNO = i - 1
 								break
@@ -234,21 +256,21 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			if RECNO == -1 {
 				// print("chiron final records sec = ", dateInSeconds)
 				Ind := n_of_rec % BUFSIZ
-				data := chiron_np[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
+				data := cc.chiron[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
 
 				// looking for the largest array element less than  dateInSeconds
 				// and get its index
-				if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+				if seconds < data[0] || seconds > data[len(data)-1] {
 					fmt.Println("we have a problem")
 				}
 
 				for i, v := range data {
-					if v == dateInSeconds {
+					if v == seconds {
 						// fmt.Println("equality , index =", i, "value = ", arr[i])
 						RECNO = i
 						break
 					}
-					if v > dateInSeconds {
+					if v > seconds {
 						// fmt.Println("index =", i-1, "value = ", arr[i-1])
 						RECNO = i - 1
 						break
@@ -259,7 +281,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			}
 
 			OFFR := start_adress - 1 + (RECNO)*DFLSIZ
-			mda_record := chiron_np[(OFFR):(OFFR + DFLSIZ)]
+			mda_record := cc.chiron[(OFFR):(OFFR + DFLSIZ)]
 
 			// print("dateInSeconds = ", dateInSeconds)
 			// print(mda_record)
@@ -275,7 +297,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 
 			KS := KQMAX1 - 1
 			MQ2 := KQMAX1 - 2
-			DELTA := dateInSeconds - TL
+			DELTA := seconds - TL
 			TP := DELTA
 
 			// FC = [0 for i in range(max_dim)]
@@ -356,7 +378,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 	return Position{0, 0, 0}
 }
 
-func Ceres(dateInSeconds float64, chiron_np []float64) Position {
+func (cc *CerChir) CalcCeres(seconds float64) Position {
 
 	type FileRecords struct {
 		rec_start_addr int
@@ -468,13 +490,13 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 	const BUFSIZ = 100
 
 	for i_summ := 1; i_summ <= total_summaries_number; i_summ++ {
-		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < dateInSeconds &&
-			CHIRON_FILE_RECORDS[i_summ].seg_last_time > dateInSeconds {
+		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < seconds &&
+			CHIRON_FILE_RECORDS[i_summ].seg_last_time > seconds {
 
 			start_adress := CHIRON_FILE_RECORDS[i_summ].rec_start_addr
 			last_adress := CHIRON_FILE_RECORDS[i_summ].rec_last_addr
 
-			n_of_rec := int(chiron_np[last_adress-1])
+			n_of_rec := int(cc.ceres[last_adress-1])
 
 			// Number of directory epochs
 			var n_of_dir int = n_of_rec / BUFSIZ
@@ -486,19 +508,19 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 
 			if n_of_rec <= BUFSIZ {
 
-				data := chiron_np[(OFFE):(OFFE + n_of_rec)]
+				data := cc.ceres[(OFFE):(OFFE + n_of_rec)]
 
-				if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+				if seconds < data[0] || seconds > data[len(data)-1] {
 					fmt.Println("we have a problem")
 				}
 
 				for i, v := range data {
-					if v == dateInSeconds {
+					if v == seconds {
 						// fmt.Println("equality , index =", i, "value = ", arr[i])
 						RECNO = i
 						break
 					}
-					if v > dateInSeconds {
+					if v > seconds {
 						// fmt.Println("index =", i-1, "value = ", arr[i-1])
 						RECNO = i - 1
 						break
@@ -508,25 +530,25 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 			} else {
 				for dir := 0; dir < n_of_dir; dir++ {
 
-					data := chiron_np[(OFFD + dir) : (OFFD+dir)+1][0]
+					data := cc.ceres[(OFFD + dir) : (OFFD+dir)+1][0]
 
-					if data > dateInSeconds {
+					if data > seconds {
 						OFFD = OFFE + (dir)*BUFSIZ
-						data := chiron_np[(OFFD):(OFFD + BUFSIZ)]
+						data := cc.ceres[(OFFD):(OFFD + BUFSIZ)]
 
 						// looking for the largest array element less than  dateInSeconds
 						// and get its index
-						if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+						if seconds < data[0] || seconds > data[len(data)-1] {
 							fmt.Println("we have a problem")
 						}
 
 						for i, v := range data {
-							if v == dateInSeconds {
+							if v == seconds {
 								// fmt.Println("equality , index =", i, "value = ", arr[i])
 								RECNO = i
 								break
 							}
-							if v > dateInSeconds {
+							if v > seconds {
 								// fmt.Println("index =", i-1, "value = ", arr[i-1])
 								RECNO = i - 1
 								break
@@ -542,21 +564,21 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 			if RECNO == -1 {
 				// print("chiron final records sec = ", dateInSeconds)
 				Ind := n_of_rec % BUFSIZ
-				data := chiron_np[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
+				data := cc.ceres[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
 
 				// looking for the largest array element less than  dateInSeconds
 				// and get its index
-				if dateInSeconds < data[0] || dateInSeconds > data[len(data)-1] {
+				if seconds < data[0] || seconds > data[len(data)-1] {
 					fmt.Println("we have a problem")
 				}
 
 				for i, v := range data {
-					if v == dateInSeconds {
+					if v == seconds {
 						// fmt.Println("equality , index =", i, "value = ", arr[i])
 						RECNO = i
 						break
 					}
-					if v > dateInSeconds {
+					if v > seconds {
 						// fmt.Println("index =", i-1, "value = ", arr[i-1])
 						RECNO = i - 1
 						break
@@ -567,7 +589,7 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 			}
 
 			OFFR := start_adress - 1 + (RECNO)*DFLSIZ
-			mda_record := chiron_np[(OFFR):(OFFR + DFLSIZ)]
+			mda_record := cc.ceres[(OFFR):(OFFR + DFLSIZ)]
 
 			// print("dateInSeconds = ", dateInSeconds)
 			// print(mda_record)
@@ -583,7 +605,7 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 
 			KS := KQMAX1 - 1
 			MQ2 := KQMAX1 - 2
-			DELTA := dateInSeconds - TL
+			DELTA := seconds - TL
 			TP := DELTA
 
 			// FC = [0 for i in range(max_dim)]
