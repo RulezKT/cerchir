@@ -18,10 +18,8 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 		rec_last_addr  int
 	}
 
-	type chironRecords [12]FileRecords
-
 	var CHIRON_FILE_RECORDS = [12]FileRecords{
-		FileRecords{
+		{
 			// SUN
 			rec_start_addr: 0,
 			seg_start_time: 0,
@@ -30,7 +28,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			rec_last_addr:  0,
 			// "rsize": 0,
 		},
-		FileRecords{
+		{
 			// 1
 			rec_start_addr: 8_065,
 			seg_start_time: -120_450_514.89409208,
@@ -41,7 +39,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  391_827_779.23949105
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 2
 			rec_start_addr: 54_072,
 			seg_start_time: -780_357_478,
@@ -52,7 +50,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  -256344669.7390517
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 3
 			rec_start_addr: 100_079,
 			seg_start_time: -1_428_684_898,
@@ -63,7 +61,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  -909271241.4267497
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 4
 			rec_start_addr: 146_086,
 			seg_start_time: -2_072_145_540,
@@ -74,7 +72,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  -1559481315.7158456
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 5
 			rec_start_addr: 192_093,
 			seg_start_time: -2_719_741_734,
@@ -85,7 +83,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  -2202930574.1405
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 6
 			rec_start_addr: 238_100,
 			seg_start_time: -3_155_716_800,
@@ -97,7 +95,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  -2891244118.0133157
 			// n =  330.0
 		},
-		FileRecords{
+		{
 			// 7
 			rec_start_addr: 268_465,
 			seg_start_time: 510_321_600,
@@ -108,7 +106,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  1002901396.5747848
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 8
 			rec_start_addr: 314_472,
 			seg_start_time: 1_134_172_990,
@@ -119,7 +117,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  1655649864.227839
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 9
 			rec_start_addr: 360_479,
 			seg_start_time: 1_785_159_000,
@@ -130,7 +128,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  2313659513.647009
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 10
 			rec_start_addr: 406_486,
 			seg_start_time: 2_451_382_230,
@@ -141,7 +139,7 @@ func Chiron(dateInSeconds float64, chiron_np []float64) Position {
 			// init =  2967630632.730112
 			// n =  500.0
 		},
-		FileRecords{
+		{
 			// 11
 			rec_start_addr: 452_493,
 			seg_start_time: 3_098_798_447,
@@ -367,8 +365,6 @@ func Ceres(dateInSeconds float64, chiron_np []float64) Position {
 		int_len        float64
 		rec_last_addr  int
 	}
-
-	type chironRecords [12]FileRecords
 
 	var CHIRON_FILE_RECORDS = [12]FileRecords{
 		{
