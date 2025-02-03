@@ -5,17 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/RulezKT/floatsfile"
+	"github.com/RulezKT/types"
 )
 
-type Position struct {
-	X float64
-	Y float64
-	Z float64
-}
-
 const (
-	CERES_FILE  = "ceres.bin"
-	CHIRON_FILE = "chiron.bin"
+	CERES_FILE    = "ceres.bin"
+	CHIRON_FILE   = "chiron.bin"
+	CERES_LENGTH  = 457984
+	CHIRON_LENGTH = 458880
 )
 
 type CerChir struct {
@@ -23,24 +20,24 @@ type CerChir struct {
 	ceres  []float64
 }
 
+type FileRecords struct {
+	rec_start_addr int
+	seg_start_time float64
+	seg_last_time  float64
+	int_len        float64
+	rec_last_addr  int
+}
+
 func (cc *CerChir) Load(dir string) {
 
-	cc.ceres = floatsfile.LoadBinary(filepath.Join(dir, CERES_FILE), 457984)
-	cc.chiron = floatsfile.LoadBinary(filepath.Join(dir, CHIRON_FILE), 458880)
+	cc.ceres = floatsfile.LoadBinary(filepath.Join(dir, CERES_FILE), CERES_LENGTH)
+	cc.chiron = floatsfile.LoadBinary(filepath.Join(dir, CHIRON_FILE), CHIRON_LENGTH)
 
 }
 
-func (cc *CerChir) CalcChiron(seconds float64) Position {
+func (cc *CerChir) CalcChiron(seconds float64) types.Position {
 
-	type FileRecords struct {
-		rec_start_addr int
-		seg_start_time float64
-		seg_last_time  float64
-		int_len        float64
-		rec_last_addr  int
-	}
-
-	var CHIRON_FILE_RECORDS = [12]FileRecords{
+	var CHIRON_FILE_RECORDS = []FileRecords{
 		{
 			// SUN
 			rec_start_addr: 0,
@@ -174,221 +171,13 @@ func (cc *CerChir) CalcChiron(seconds float64) Position {
 		},
 	}
 
-	const total_summaries_number = 11
-	// max_dim is always 20. ceres_np[CERES_FILE_RECORDS[i_summ]["rec_last_addr"] - 2]
-	const max_dim = 20
-	// DFLSIZ = (4 * max_dim) + 11  // rsize = (4 * max_dim) + 11
-	const DFLSIZ = 91
-	const BUFSIZ = 100
+	return calcCC(seconds, cc.chiron, CHIRON_FILE_RECORDS)
 
-	for i_summ := 1; i_summ <= total_summaries_number; i_summ++ {
-		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < seconds &&
-			CHIRON_FILE_RECORDS[i_summ].seg_last_time > seconds {
-
-			start_adress := CHIRON_FILE_RECORDS[i_summ].rec_start_addr
-			last_adress := CHIRON_FILE_RECORDS[i_summ].rec_last_addr
-
-			n_of_rec := int(cc.chiron[last_adress-1])
-
-			// Number of directory epochs
-			var n_of_dir int = n_of_rec / BUFSIZ
-
-			OFFD := last_adress - n_of_dir - 2
-			OFFE := OFFD - n_of_rec
-
-			RECNO := -1
-
-			if n_of_rec <= BUFSIZ {
-
-				data := cc.chiron[(OFFE):(OFFE + n_of_rec)]
-
-				if seconds < data[0] || seconds > data[len(data)-1] {
-					fmt.Println("we have a problem")
-				}
-
-				for i, v := range data {
-					if v == seconds {
-						// fmt.Println("equality , index =", i, "value = ", arr[i])
-						RECNO = i
-						break
-					}
-					if v > seconds {
-						// fmt.Println("index =", i-1, "value = ", arr[i-1])
-						RECNO = i - 1
-						break
-					}
-				}
-
-			} else {
-				for dir := 0; dir < n_of_dir; dir++ {
-
-					data := cc.chiron[(OFFD + dir) : (OFFD+dir)+1][0]
-
-					if data > seconds {
-						OFFD = OFFE + (dir)*BUFSIZ
-						data := cc.chiron[(OFFD):(OFFD + BUFSIZ)]
-
-						// looking for the largest array element less than  dateInSeconds
-						// and get its index
-						if seconds < data[0] || seconds > data[len(data)-1] {
-							fmt.Println("we have a problem")
-						}
-
-						for i, v := range data {
-							if v == seconds {
-								// fmt.Println("equality , index =", i, "value = ", arr[i])
-								RECNO = i
-								break
-							}
-							if v > seconds {
-								// fmt.Println("index =", i-1, "value = ", arr[i-1])
-								RECNO = i - 1
-								break
-							}
-						}
-
-						RECNO = dir*BUFSIZ + RECNO
-						break
-					}
-				}
-			}
-
-			if RECNO == -1 {
-				// print("chiron final records sec = ", dateInSeconds)
-				Ind := n_of_rec % BUFSIZ
-				data := cc.chiron[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
-
-				// looking for the largest array element less than  dateInSeconds
-				// and get its index
-				if seconds < data[0] || seconds > data[len(data)-1] {
-					fmt.Println("we have a problem")
-				}
-
-				for i, v := range data {
-					if v == seconds {
-						// fmt.Println("equality , index =", i, "value = ", arr[i])
-						RECNO = i
-						break
-					}
-					if v > seconds {
-						// fmt.Println("index =", i-1, "value = ", arr[i-1])
-						RECNO = i - 1
-						break
-					}
-				}
-
-				RECNO = (n_of_dir)*BUFSIZ + RECNO
-			}
-
-			OFFR := start_adress - 1 + (RECNO)*DFLSIZ
-			mda_record := cc.chiron[(OFFR):(OFFR + DFLSIZ)]
-
-			// print("dateInSeconds = ", dateInSeconds)
-			// print(mda_record)
-
-			TL := mda_record[0]
-			G := mda_record[1 : max_dim+1]
-			REFPOS := []float64{mda_record[max_dim+1], mda_record[max_dim+3], mda_record[max_dim+5]}
-			REFVEL := []float64{mda_record[max_dim+2], mda_record[max_dim+4], mda_record[max_dim+6]}
-
-			KQMAX1 := int(mda_record[4*max_dim+7])
-
-			KQ := []float64{(mda_record[4*max_dim+8]), (mda_record[4*max_dim+9]), (mda_record[4*max_dim+10])}
-
-			KS := KQMAX1 - 1
-			MQ2 := KQMAX1 - 2
-			DELTA := seconds - TL
-			TP := DELTA
-
-			// FC = [0 for i in range(max_dim)]
-			var FC [max_dim]float64
-			FC[0] = 1.0
-			// WC = [0 for i in range(max_dim - 1)]
-			var WC [max_dim - 1]float64
-
-			for J := 1; J < MQ2+1; J++ {
-				if G[J-1] == 0.0 {
-					fmt.Println("SPKE21\nA value of zero was found at index {0} of the step size vector.")
-				}
-				FC[J] = TP / G[J-1]
-				WC[J-1] = DELTA / G[J-1]
-				TP = DELTA + G[J-1]
-			}
-			// W = [0 for i in range(max_dim + 2)]
-			var W [max_dim + 2]float64
-
-			//
-			//     Collect KQMAX1 reciprocals.
-			//     KS = KQMAX1 - 1     KS = KQMAX1 - 1
-			// for J in range(1, KQMAX1 + 1):
-			//     W[J - 1] = 1.0 / float(J)
-			for J := 1; J < KQMAX1+1; J++ {
-				W[J-1] = 1.0 / float64(J)
-			}
-
-			//
-			//     Compute the W(K) terms needed for the position interpolation
-			//     (Note,  it is assumed throughout this routine that KS, which
-			//     starts out as KQMAX1-1 (the ``maximum integration'')
-			//     is at least 2.
-			//
-
-			JX := 0
-			KS1 := KS - 1
-
-			for KS >= 2 {
-				JX = JX + 1
-
-				for J := 1; J < JX+1; J++ {
-					W[J+KS-1] = FC[J]*W[J+KS1-1] - WC[J-1]*W[J+KS-1]
-				}
-				KS = KS1
-				KS1 = KS1 - 1
-			}
-			//
-			//     Perform position interpolation: (Note that KS = 1 right now.
-			//     We don't know much more than that.)
-			//
-
-			STATE := []float64{0, 0, 0}
-
-			// DTtest = np.reshape(  mda_record[max_dim + 7 : max_dim * 4 + 7], (max_dim, 3), order="F"  )
-			first_arr := mda_record[max_dim+7 : max_dim*2+7]
-			second_arr := mda_record[max_dim*2+7 : max_dim*3+7]
-			third_arr := mda_record[max_dim*3+7 : max_dim*4+7]
-			DTtest := [][]float64{first_arr, second_arr, third_arr}
-
-			for Ii := 0; Ii < 3; Ii++ {
-				KQQ := KQ[Ii]
-				SUM := 0.0
-
-				for J := KQQ; J > 0; J-- {
-					// v SUM = SUM + DTtest[J - 1][Ii] * W[J - 1 + KS]
-					// SUM = SUM + DTtest[int(J-1)][Ii]*W[(int(J)-1+KS)]
-					SUM = SUM + DTtest[Ii][int(J-1)]*W[(int(J)-1+KS)]
-				}
-
-				STATE[Ii] = REFPOS[Ii] + DELTA*(REFVEL[Ii]+DELTA*SUM)
-			}
-			return Position{STATE[0], STATE[1], STATE[2]}
-		}
-
-	}
-
-	return Position{0, 0, 0}
 }
 
-func (cc *CerChir) CalcCeres(seconds float64) Position {
+func (cc *CerChir) CalcCeres(seconds float64) types.Position {
 
-	type FileRecords struct {
-		rec_start_addr int
-		seg_start_time float64
-		seg_last_time  float64
-		int_len        float64
-		rec_last_addr  int
-	}
-
-	var CHIRON_FILE_RECORDS = [12]FileRecords{
+	var CERES_FILE_RECORDS = []FileRecords{
 		{
 			// SUN
 			rec_start_addr: 0,
@@ -482,21 +271,26 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 		},
 	}
 
-	const total_summaries_number = 10
-	// max_dim is always 20. ceres_np[CERES_FILE_RECORDS[i_summ]["rec_last_addr"] - 2]
+	return calcCC(seconds, cc.ceres, CERES_FILE_RECORDS)
+
+}
+
+func calcCC(seconds float64, pfile []float64, FILE_RECORDS []FileRecords) types.Position {
+
 	const max_dim = 20
-	// DFLSIZ = (4 * max_dim) + 11  // rsize = (4 * max_dim) + 11
 	const DFLSIZ = 91
 	const BUFSIZ = 100
+	var total_summaries_number = len(FILE_RECORDS) - 1
+	// fmt.Println("total_summaries_number = ", total_summaries_number)
 
 	for i_summ := 1; i_summ <= total_summaries_number; i_summ++ {
-		if CHIRON_FILE_RECORDS[i_summ].seg_start_time < seconds &&
-			CHIRON_FILE_RECORDS[i_summ].seg_last_time > seconds {
+		if FILE_RECORDS[i_summ].seg_start_time < seconds &&
+			FILE_RECORDS[i_summ].seg_last_time > seconds {
 
-			start_adress := CHIRON_FILE_RECORDS[i_summ].rec_start_addr
-			last_adress := CHIRON_FILE_RECORDS[i_summ].rec_last_addr
+			start_adress := FILE_RECORDS[i_summ].rec_start_addr
+			last_adress := FILE_RECORDS[i_summ].rec_last_addr
 
-			n_of_rec := int(cc.ceres[last_adress-1])
+			n_of_rec := int(pfile[last_adress-1])
 
 			// Number of directory epochs
 			var n_of_dir int = n_of_rec / BUFSIZ
@@ -508,7 +302,7 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 
 			if n_of_rec <= BUFSIZ {
 
-				data := cc.ceres[(OFFE):(OFFE + n_of_rec)]
+				data := pfile[(OFFE):(OFFE + n_of_rec)]
 
 				if seconds < data[0] || seconds > data[len(data)-1] {
 					fmt.Println("we have a problem")
@@ -530,11 +324,11 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 			} else {
 				for dir := 0; dir < n_of_dir; dir++ {
 
-					data := cc.ceres[(OFFD + dir) : (OFFD+dir)+1][0]
+					data := pfile[(OFFD + dir) : (OFFD+dir)+1][0]
 
 					if data > seconds {
 						OFFD = OFFE + (dir)*BUFSIZ
-						data := cc.ceres[(OFFD):(OFFD + BUFSIZ)]
+						data := pfile[(OFFD):(OFFD + BUFSIZ)]
 
 						// looking for the largest array element less than  dateInSeconds
 						// and get its index
@@ -564,7 +358,7 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 			if RECNO == -1 {
 				// print("chiron final records sec = ", dateInSeconds)
 				Ind := n_of_rec % BUFSIZ
-				data := cc.ceres[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
+				data := pfile[(last_adress - n_of_dir - Ind) : last_adress-n_of_dir]
 
 				// looking for the largest array element less than  dateInSeconds
 				// and get its index
@@ -589,7 +383,7 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 			}
 
 			OFFR := start_adress - 1 + (RECNO)*DFLSIZ
-			mda_record := cc.ceres[(OFFR):(OFFR + DFLSIZ)]
+			mda_record := pfile[(OFFR):(OFFR + DFLSIZ)]
 
 			// print("dateInSeconds = ", dateInSeconds)
 			// print(mda_record)
@@ -678,10 +472,10 @@ func (cc *CerChir) CalcCeres(seconds float64) Position {
 
 				STATE[Ii] = REFPOS[Ii] + DELTA*(REFVEL[Ii]+DELTA*SUM)
 			}
-			return Position{STATE[0], STATE[1], STATE[2]}
+			return types.Position{X: STATE[0], Y: STATE[1], Z: STATE[2]}
 		}
 
 	}
 
-	return Position{0, 0, 0}
+	return types.Position{X: 0, Y: 0, Z: 0}
 }
